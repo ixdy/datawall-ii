@@ -3,14 +3,20 @@
 import argparse
 from PIL import Image
 
-SIGN_WIDTH=160
-SIGN_HEIGHT=28
+BLOCK_COLUMNS=32
+BLOCK_ROWS=4
+
 BLOCK_WIDTH=5
 BLOCK_HEIGHT=7
 
+INTERBLOCK_WIDTH=1
+INTERBLOCK_HEIGHT=4
+
 class Sign(object):
 	def __init__(self, filename):
-		self.im = Image.open(filename).resize((SIGN_WIDTH, SIGN_HEIGHT)).convert(mode='L')
+		self.width = BLOCK_WIDTH * BLOCK_COLUMNS + INTERBLOCK_WIDTH * (BLOCK_COLUMNS-1)
+		self.height = BLOCK_HEIGHT * BLOCK_ROWS + INTERBLOCK_HEIGHT * (BLOCK_ROWS-1)
+		self.im = Image.open(filename).resize((self.width, self.height)).convert(mode='L')
 		self.px = self.im.load()
 		self.chars = {chr(0)*BLOCK_HEIGHT: ord(' ')}
 		self.next_char = ord(' ') + 1
@@ -20,18 +26,16 @@ class Sign(object):
 		block_idx = 0
 		current_block = []
 
-		num_x_blocks = self.im.width / BLOCK_WIDTH
-		num_y_blocks = self.im.height / BLOCK_HEIGHT 
-
-	
-		for y_block_idx in xrange(num_y_blocks):
+		for y_block_idx in xrange(BLOCK_ROWS):
 			row = []
-			for x_block_idx in xrange(num_x_blocks):
+			for x_block_idx in xrange(BLOCK_COLUMNS):
 				block = []	
 				for y_off in xrange(BLOCK_HEIGHT):
 					block_byte = 0
 					for x_off in xrange(BLOCK_WIDTH):
-						if self.px[x_block_idx * BLOCK_WIDTH + x_off, y_block_idx * BLOCK_HEIGHT + y_off]:
+						x_idx = x_block_idx * (BLOCK_WIDTH + INTERBLOCK_WIDTH) + x_off
+						y_idx = y_block_idx * (BLOCK_HEIGHT + INTERBLOCK_HEIGHT) + y_off
+						if self.px[x_idx, y_idx]:
 							block_byte += 2**x_off
 					block.append(block_byte)	
 				row.append(self.block_to_character(block))
