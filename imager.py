@@ -13,13 +13,22 @@ INTERBLOCK_WIDTH=1
 INTERBLOCK_HEIGHT=4
 
 class Sign(object):
-	def __init__(self, filename):
-		self.width = BLOCK_WIDTH * BLOCK_COLUMNS + INTERBLOCK_WIDTH * (BLOCK_COLUMNS-1)
-		self.height = BLOCK_HEIGHT * BLOCK_ROWS + INTERBLOCK_HEIGHT * (BLOCK_ROWS-1)
-		self.im = Image.open(filename).resize((self.width, self.height)).convert(mode='L')
+	def __init__(self, filename, stretch=False, invert=False):
+		max_width = BLOCK_WIDTH * BLOCK_COLUMNS + INTERBLOCK_WIDTH * (BLOCK_COLUMNS-1)
+		max_height = height = BLOCK_HEIGHT * BLOCK_ROWS + INTERBLOCK_HEIGHT * (BLOCK_ROWS-1)
+		orig_im = Image.open(filename)
+		if stretch:
+			orig_im = orig_im.resize((max_width, max_height))
+		else:
+		  orig_im.thumbnail((max_width, max_height))
+		self.im = orig_im.convert(mode='L')
 		self.px = self.im.load()
+		self.x_center_off = (max_width - self.im.width) / 2
+		self.y_center_off = (max_height - self.im.height) / 2
+		print "offsets: ", self.x_center_off, self.y_center_off
 		self.chars = {chr(0)*BLOCK_HEIGHT: ord(' ')}
 		self.next_char = ord(' ') + 1
+		self.invert=invert
 
 	def convert_to_chars(self):
 		self.blocks = []
@@ -33,9 +42,11 @@ class Sign(object):
 				for y_off in xrange(BLOCK_HEIGHT):
 					block_byte = 0
 					for x_off in xrange(BLOCK_WIDTH):
-						x_idx = x_block_idx * (BLOCK_WIDTH + INTERBLOCK_WIDTH) + x_off
-						y_idx = y_block_idx * (BLOCK_HEIGHT + INTERBLOCK_HEIGHT) + y_off
-						if self.px[x_idx, y_idx]:
+						x_idx = x_block_idx * (BLOCK_WIDTH + INTERBLOCK_WIDTH) + x_off - self.x_center_off
+						y_idx = y_block_idx * (BLOCK_HEIGHT + INTERBLOCK_HEIGHT) + y_off - self.y_center_off
+						if x_idx < 0 or x_idx >= self.im.width or y_idx < 0 or y_idx >= self.im.height:
+							continue
+						if (self.px[x_idx, y_idx] and not self.invert) or (self.invert and not self.px[x_idx, y_idx]):
 							block_byte += 2**x_off
 					block.append(block_byte)	
 				row.append(self.block_to_character(block))
@@ -55,7 +66,7 @@ class Sign(object):
 			
 	def write(self, outfile):
 		f = open(outfile, 'w')	
-		f.write('\x01\x30\xFFU\x24\x04')
+		f.write('\x01\x30\xFFU\x22\x04')
 		# Set character fonts
 		for block, char in self.chars.iteritems():
 			if char != ord(' '):
@@ -68,18 +79,18 @@ class Sign(object):
 					ord(' ') + row_idx,
 					''.join(chr(block) for block in self.blocks[row_idx])))
 
-		# Reset character fonts
-		for char in self.chars.itervalues():
-			if char != ord(' '):
-				f.write('\x01\x30\xffL%c%s\x03' % (char, chr(0)*BLOCK_HEIGHT))
+		# Reload default font
+		f.write('\x01\x30\xFFU\x22\x04')
 				
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('image', type=str, help='Image to display')
 	parser.add_argument('outfile', type=str, help='Output file')
+	parser.add_argument('--stretch', type=bool, default=False, help='Stretch image to fill sign rather than constraining dimensions')
+	parser.add_argument('--invert', type=bool, default=False, help='Invert colors')
 	args = parser.parse_args()
 
-	sign = Sign(args.image)
+	sign = Sign(args.image, stretch=args.stretch, invert=args.invert)
 
 	for y in xrange(sign.im.height):
 		pixels = []
