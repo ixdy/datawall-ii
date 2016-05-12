@@ -46,7 +46,7 @@ class Sign(object):
         self.px = self.im.load()
         self.x_center_off = (max_width - self.im.width) / 2
         self.y_center_off = (max_height - self.im.height) / 2
-        self.chars = {chr(0)*BLOCK_HEIGHT: ord(' ')}
+        self.chars = {' '*BLOCK_HEIGHT: ord(' ')}
         self.next_char = ord(' ') + 1
         self.invert = invert
         self.color_code = COLORS[color]
