@@ -32,6 +32,14 @@ COLORS = {
     'amber': 0x1f,
 }
 
+SPACE = ord(' ')
+# These values all come from the test mode of the sign.
+PANEL_NUMBER = 0x10        # P:XX
+BRIGHTNESS_ROW_CODE = 0xf  # B:-X
+TOP_ROW_NUMBER = 0         # T:XX
+LEFT_COLUMN_NUMBER = 0     # L:XX
+BRIGHTNESS_ROW_ADDRESS = 80 + BRIGHTNESS_ROW_CODE  # yes, decimal 80. This is not a typo.
+
 class Sign(object):
 
     def __init__(self, filename, stretch=False, invert=False, color='green'):
@@ -46,8 +54,8 @@ class Sign(object):
         self.px = self.im.load()
         self.x_center_off = (max_width - self.im.width) / 2
         self.y_center_off = (max_height - self.im.height) / 2
-        self.chars = {' '*BLOCK_HEIGHT: ord(' ')}
-        self.next_char = ord(' ') + 1
+        self.chars = {' '*BLOCK_HEIGHT: SPACE}
+        self.next_char = SPACE + 1
         self.invert = invert
         self.color_code = COLORS[color]
         self.blocks = []
@@ -93,32 +101,42 @@ class Sign(object):
     def block_to_character(self, block):
         if len(block) != BLOCK_HEIGHT:
             raise ValueError
-        key = ''.join(chr(b+ord(' ')) for b in block)
+        key = ''.join(chr(SPACE + b) for b in block)
         if key not in self.chars:
             if self.next_char >= 127:
                 print 'Too many characters used!'
-                return ord(' ')
+                return SPACE
             self.chars[key] = self.next_char
             self.next_char += 1
         return self.chars[key]
 
     def write(self, outfile):
         f = open(outfile, 'w')
-        f.write('\x01\x30\xFFU\x22\x04')
+        # Set font to id 2 (ASCII) (plus required \x20 offset).
+        # This is probably not necessary, since we're about to override it, but I never got
+        # around to testing without it.
+        f.write('\x01%c%cfU\x22\x04' % (SPACE + PANEL_NUMBER, SPACE + BRIGHTNESS_ROW_ADDRESS))
         # Set character fonts
         for block, char in self.chars.iteritems():
-            if char != ord(' '):
-                f.write('\x01\x30\xffL%c%s\x03' % (char, block))
+            if char != SPACE:
+                f.write('\x01%c%cL%c%s\x03' % (
+                    SPACE + PANEL_NUMBER,
+                    SPACE + BRIGHTNESS_ROW_ADDRESS,
+                    char,
+                    block))
 
         # Write out rows
         for row_idx in xrange(len(self.blocks)):
-            f.write('\x01\x30%c %c%s\x03' % (
-                ord(' ') + row_idx,
+            # Sending \x0f clears the row before drawing the image.
+            f.write('\x01%c%c%c%c\x0f%s\x03' % (
+                SPACE + PANEL_NUMBER,
+                SPACE + TOP_ROW_NUMBER + row_idx,
+                SPACE + LEFT_COLUMN_NUMBER,
                 self.color_code,
                 ''.join(chr(block) for block in self.blocks[row_idx])))
 
-        # Reload default font
-        f.write('\x01\x30\xFFU\x22\x04')
+        # Reload default font (id 2 - ASCII), plus required \x20 offset.
+        f.write('\x01%c%cU\x22\x04' % (SPACE + PANEL_NUMBER, SPACE + BRIGHTNESS_ROW_ADDRESS))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
